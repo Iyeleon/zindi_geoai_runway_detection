@@ -1,0 +1,44 @@
+[data.raw_dataset]
+train_data_dir = './data/pac_2024_training'
+test_data_dir = './data/shp_test_AOIs/shp'
+
+[data.image_data]
+train_image_dir = './data/image/training'
+test_image_dir = './data/image/test'
+
+[params.data]
+sentinel_url = 'openeo.dataspace.copernicus.eu'
+sentinel_collection = 'SENTINEL2_L2A'
+sentinel_bands = ['B02', 'B03', 'B04', 'B06', 'B07', 'B08', 'B11', 'B12', 'SCL']
+sentinel_max_cloud_cover = 10
+linestring_buffer = 12
+resolution = 10
+width = 256
+height = 256
+
+[params.model]
+model = 'segformer'
+model_checkpoint = 'nvidia/segformer-b2-finetuned-ade-512-512'
+classification_num_classes = 2
+segmentation_num_classes = 2
+batch_size = 2
+
+[params.model.ids.id2label]
+'0' = 'background'
+'1' = 'runway'
+
+[params.model.ids.label2id]
+'background' = 0
+'runway' = 1 
+
+[params.spatial]
+output_crs = 'epsg:32718'
+geographic_crs = 'epsg:4326'
+
+[output]
+predictions_dir = "/path/to/save/predictions"
+logs_dir = "./logs"
+
+[patches]
+patch_size = 128
+stride = 128
