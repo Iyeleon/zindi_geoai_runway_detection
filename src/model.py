@@ -1,7 +1,11 @@
 import os
+import gc
 import json
 import tensorflow as tf
 from transformers import TFSegformerModel, TFSegformerDecodeHead
+
+from skimage.transform import resize
+from rasterio.enums import Resampling
 
 class DualSegformerClassifierModel(tf.keras.models.Model):
     def __init__(self, 
@@ -208,3 +212,11 @@ class DualSegformerClassifierModel(tf.keras.models.Model):
 
         # Return a dictionary of performance
         return {m.name: m.result() for m in self.metrics}
+    
+class ClearMemoryCallback(tf.keras.callbacks.Callback):
+    def on_epoch_end(self, epoch, logs=None):
+        # Clear the backend session
+        tf.keras.backend.clear_session()
+        
+        # Run garbage collection
+        gc.collect()
