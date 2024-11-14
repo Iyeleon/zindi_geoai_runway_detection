@@ -3,7 +3,6 @@ This repository contains the code for detecting clandestine runways in Peru, dev
 The project tackles the challenge as both a localization and segmentation problem using satellite imagery and deep learning techniques. 
 The dual model detects if a runway is present in an image and then segments the runway. 
 
-
 ## Methodology Used
 ### Dataset collection
 The dataset is open-source satellite imagery from Sentinel-2 at a 10m resolution. The dataset collection process involved several key steps:
