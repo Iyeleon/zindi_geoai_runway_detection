@@ -52,9 +52,5 @@ make test_data
 ```
 - Run Model: Train the Segformer model using the prepared training data.
 ```
-make run_model
-```
-Run Inference: Perform inference on the test data and generate predictions.
-```
-make inference
+make run_notebook
 ```
