@@ -189,6 +189,35 @@ def download_sdata(
     datacube_composite.download(sdata_name, format = 'GTiff')
 
 def create_data_sample(df, connection, collection, bands, temporal_extent, width, height, resolution, crs, max_cloud_cover, buffer, **kwargs):
+    '''Creates an image mask data sample in a folder. 
+    Parameters
+    ----------
+    df : pd.series
+        Row data from a pandas dataframe
+    connection : oidc connection
+        An OIDC connection instance
+    collection : str
+        Name of the collection to use.
+    bands : list
+        List containing bands to extract.
+    temporal_extent : list or tuple
+        Time range to download from; format = (start, end).
+    width : int
+        Output width
+    height : int
+        Output height
+    resolution : int
+        Scale to download at
+    crs : str
+        EPSG projection
+    max_cloud_cover : int
+        Maximum cloud cover allowed per image
+
+    Returns
+    -------
+    None
+    '''
+    
     os.makedirs(df.output_dir, exist_ok = True)
     name = os.path.join(df.output_dir, df.filename)
     geom = df.geometry
@@ -236,6 +265,22 @@ def create_data_sample(df, connection, collection, bands, temporal_extent, width
     )
 
 def expand_df(df, offset, data_dir = None, random_state = 0):
+    '''Add additional information to the train dataframe
+    Parameters
+    ---------
+    df : pd.DataFrame
+        Dataframe to expand.
+    offset : int
+        Offset distance for adjacent non-runway images
+    data_dir : str or path
+        Root data folder
+    random_state : int
+        Random seed for shuffling the dataset
+    
+    Returns
+    -------
+    pd.DataFrame : A new dataframe with additional columns
+    '''
     df1 = df.copy()
     df2 = df.copy()
     df1['runway'] = 1
@@ -259,6 +304,24 @@ def expand_df(df, offset, data_dir = None, random_state = 0):
     return new_df
 
 def get_start_date(lon, lat, start_date, end_date, box, cloud_cover):
+    '''
+    Extracts available start date with the maximum cloud cover specified.
+    lon : float
+        Longitude
+    lat : float
+        Latitude
+    start_date : str
+        Start date
+    end_date : str
+        End date
+    box : list
+        Bounds of region to query
+    cloud_cover : int
+        Maximum allowed cloud cover
+    Returns
+    -------
+    None
+    '''
     json = requests.get(f'https://catalogue.dataspace.copernicus.eu/resto/api/collections/Sentinel2/search.json?productType=S2MSI2A&cloudCover=[0,{cloud_cover}]&startDate={start_date}&completionDate={end_date}&lon={lon}&lat={lat}&box={",".join([str(i) for i in box])}').json()
     output = pd.DataFrame.from_dict(json['features'])
     if len(output) > 1:
@@ -267,16 +330,36 @@ def get_start_date(lon, lat, start_date, end_date, box, cloud_cover):
     return None
 
 def create_date(date_str):
-    Y, m, d = [int(i) for i in date_str.split('-')] # construct end date
-    date = datetime.date(Y, m, d) # construct end date
+    '''Constructs datetime object from date str'''
+    Y, m, d = [int(i) for i in date_str.split('-')]
+    date = datetime.date(Y, m, d)
     return date
 
 def get_available_dates(df, date, timedelta, crs, max_cloud_cover):
+    '''Incrementally searches for availabe data from specified date range.
+    Parameters
+    ----------
+    df : pd.series
+        A dataframe row
+    date : str
+        Date to query from
+    timedelta : int
+        Step size (in days) for searching
+    crs : int
+        EPSG format crs 
+    max_cloud_cover : int
+        Maximum cloud cover 
+    Returns
+    -------
+    tuple : (start, end)
+    '''
+    # format date
     year = int(date.split('-')[0])
     date = create_date(date)
     start_date = date - datetime.timedelta(timedelta) # get start date
     end_date = date + datetime.timedelta(timedelta) # get start date
 
+    # format bounds
     lon, lat = df.geometry.bounds[:2] # get coordinates
     lon2, lat2 = df.geometry.bounds[2:]
     projector = pyproj.Transformer.from_crs(crs, 'epsg:4326')
@@ -285,7 +368,6 @@ def get_available_dates(df, date, timedelta, crs, max_cloud_cover):
     box = [lon, lat, lon2, lat2]
     
     status = None # initialize available_start_date
-    step = 0
     
     # while loop till it gets the data, check as far back as 2015
     while status is None:
@@ -307,7 +389,7 @@ def get_available_dates(df, date, timedelta, crs, max_cloud_cover):
         start_date = None
         end_date = None
     else:
-        start_date = start_date.strftime('%Y-%m-%d')#available_start_date.split('T')[0]
+        start_date = start_date.strftime('%Y-%m-%d')
         end_date = end_date.strftime('%Y-%m-%d')
     
     return start_date, end_date
@@ -317,13 +399,12 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', help = 'path to config file', required = True)
     parser.add_argument('-t', '--type', help = 'type of data, train or test', required = False, default = 'train')
-    # parser.add_argument ('-d', '--date', help = 'Date to download data from', required = False, default = '2024-09-30')
     parser.add_argument('-dt', '--timedelta', help = 'Days to look behind to find data', required = False, type = int, default = 30)
     args = parser.parse_args()
-
     
     # get config and load files
     config = toml.load(args.config)
+
     # defaults
     LOGDIR = config['output']['logs_dir']
     URL = config['params']['data']['sentinel_url']

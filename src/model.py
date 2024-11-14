@@ -4,9 +4,6 @@ import json
 import tensorflow as tf
 from transformers import TFSegformerModel, TFSegformerDecodeHead
 
-from skimage.transform import resize
-from rasterio.enums import Resampling
-
 class DualSegformerClassifierModel(tf.keras.models.Model):
     def __init__(self, 
                  pretrained_path = 'nvidia/mit-b0', 
@@ -52,6 +49,8 @@ class DualSegformerClassifierModel(tf.keras.models.Model):
             tf.keras.layers.Reshape([w3, w1, w2], name = 'embedder_reshaper')
         ], name = 'embedder')
         
+        # The images have more than 3 channels
+        # Preprocess with a CNN to reduce to 3 channels before passing to Segformer
         self.preprocessor = tf.keras.models.Sequential([
             tf.keras.layers.Input(shape = self.input_size),
             tf.keras.layers.BatchNormalization(),
@@ -67,21 +66,20 @@ class DualSegformerClassifierModel(tf.keras.models.Model):
             tf.keras.layers.Lambda(lambda x: tf.transpose(x, perm = [0, 3, 1, 2]), name = 'transpose')
         ])
         
+        # layer to add image and year embeddings
+        self.add = tf.keras.layers.Add(name = 'latent_add') 
         
-        # self.concat = tf.keras.layers.Concatenate(name = 'latent_concat')
-        self.concat = tf.keras.layers.Add(name = 'latent_add')
-        
+        # segformer decode head
         self.decode_head = TFSegformerDecodeHead.from_pretrained(
             pretrained_path,
             num_labels = self.num_seg_labels,
             id2label = self.id2label,
             label2id = self.label2id
         )
-
-        
+        self.softmax = tf.keras.layers.Activation('softmax') # FUTURE: implement softmax with temperature
         self.segmentation_head = tf.keras.layers.Lambda(lambda x : tf.image.resize(x, size = (self.output_size[0], self.output_size[1]), method = 'bilinear'))
-        self.softmax = tf.keras.layers.Activation('softmax')
 
+        # Localization classifier head
         self.classifier_head = tf.keras.models.Sequential([
             tf.keras.layers.Conv2D(
                 self.encoder.config.hidden_sizes[0], kernel_size = 1, strides = 1, padding = 'same', activation = 'relu', 
@@ -91,12 +89,9 @@ class DualSegformerClassifierModel(tf.keras.models.Model):
             tf.keras.layers.Dense(self.encoder.config.hidden_sizes[0], name = 'classifier_projection', activation = 'relu'),
             tf.keras.layers.Dense(self.num_classif_labels, activation = self.classif_activation, name = 'classifier_output')
         ], name = 'classifier_head')
-        
-        # self.build((None, input_size[0], input_size[1], self.num_classif_labels))
     
     def call(self, inputs, training=False):
-        # yr, feature = inputs
-
+        # Get inputs
         yr = inputs[0]
         feature = inputs[1]
 
@@ -108,7 +103,7 @@ class DualSegformerClassifierModel(tf.keras.models.Model):
 
         # Embed the year variable and concatenate with image features
         yr = self.embedder(yr, training = training)
-        last_hidden_state = self.concat([x[-1], yr], training = training)
+        last_hidden_state = self.add([x[-1], yr], training = training)
 
         # Classification output
         classif = self.classifier_head(last_hidden_state, training = training)
@@ -127,7 +122,6 @@ class DualSegformerClassifierModel(tf.keras.models.Model):
         self.decode_head.summary(*args, **kwargs)
         self.classifier_head.summary(*args, **kwargs)
         
-
     @classmethod
     def from_pretrained(cls, path):
         # Ensure the directory exists
@@ -177,7 +171,6 @@ class DualSegformerClassifierModel(tf.keras.models.Model):
 
     def train_step(self, data):
         x, (y_classif, y_seg) = data
-        
         
         with tf.GradientTape() as tape:
             # Forward pass
