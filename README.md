@@ -49,10 +49,19 @@ Qualitative Observations:
 - False Positives in pathways
 
 ### Inference
-
+The inference process employs a sliding window approach to handle large images and ensure thorough coverage across the input area. This approach divides the image into smaller, overlapping patches that are processed independently by the model, allowing it to focus on localized regions. The sliding window method is particularly useful for detecting runways in expansive landscapes, as it helps prevent runway sections from being missed due to the model's receptive field limits.
 
 ### Post Processing
+Post-processing steps were applied to enhance the segmentation results and improve runway detection for practical use cases. However, for competition submissions, raw outputs from segmentation were used to align with leaderboard evaluation criteria. The post-processing techniques included:
 
+- Segmentation Confidence Filtering: A confidence threshold of 0.3 was set to filter out low-confidence detections, helping to retain only the segments with a higher likelihood of representing runways.
+Otsu Thresholding:
+
+- Otsu's Thresholding was applied to refine binary segmentation results, effectively reducing noise and enhancing the clarity of runway boundaries. This step helped in distinguishing runways from surrounding terrain and other structures.
+- Runway Line Straightening: Detected runway lines were straightened to conform to expected geometric patterns, such as straight lines or slightly curved paths. This process further filtered out irregular shapes that might resemble runways but do not match expected structures.
+Filtering Non-Runways:
+
+- Non-runway segments were filtered out based on criteria like shape, size, and orientation, further improving practical usability. These filters helped reduce false positives, ensuring that only plausible runway structures were retained in the final output.
 
 ## Getting Started
 Follow the instructions below to set up and run the project:
@@ -106,18 +115,15 @@ Despite the strong performance, there are limitations and areas for improvement:
 
 - Cloud Cover and Atmospheric Conditions: The model struggles with images that have significant cloud cover or haze, which can obscure runways. Clouds introduce noise in segmentation results, sometimes leading to false positives or negatives.
 While cloud masks were applied to mitigate this, they were not always effective in fully eliminating the impact of cloud-covered regions.
-Complex Backgrounds and Water Bodies:
+- Complex Backgrounds and Water Bodies: Runways located near water bodies, rivers, or roads sometimes lead to confusion. Although the model incorporates non-RGB, distinguishing between certain water patterns and runways remains challenging. Further post-processing includes masking out water and clouds areas. Enhancement of the input feature set or use of additional bands could help improve differentiation in these scenarios.
 
-- Runways located near water bodies, rivers, or roads sometimes lead to confusion. Although the model incorporates non-RGB bands like NDWI, distinguishing between certain water patterns and runways remains challenging.
-Further enhancement of the input feature set or use of additional bands could help improve differentiation in these scenarios.
+- Resolution Limitations: The 10m resolution from Sentinel-2 is adequate but not ideal for extremely fine-grained segmentation. Higher-resolution imagery could potentially yield better results, especially for smaller or less distinct runways. The use of 10m data may also contribute to boundary blurring around runways, affecting the accuracy of pixel-level segmentation.
 
-- Resolution Limitations: The 10m resolution from Sentinel-2 is adequate but not ideal for extremely fine-grained segmentation. Higher-resolution imagery could potentially yield better results, especially for smaller or less distinct runways.
-The use of 10m data may also contribute to boundary blurring around runways, affecting the accuracy of pixel-level segmentation.
 - Computational Resource Constraints: 
 Transformer-based models like Segformer can be computationally intensive. For larger datasets or higher resolutions, the model may face memory and processing limitations, especially on GPUs with restricted VRAM.
 During training, memory management and batch size adjustments were essential to avoid out-of-memory errors, which could impact training efficiency.
+
 - Dataset Limitations: Since the dataset assumes that all runways in the year of observation are active, there could be inaccuracies if certain runways were inactive but still visible in the imagery. This limitation introduces potential false positives in the classification task.
-Future Directions
 
 To address these limitations, potential future improvements could include:
 
@@ -126,6 +132,8 @@ To address these limitations, potential future improvements could include:
 - Using advanced cloud masking or image enhancement techniques to reduce the impact of cloud cover.
 - Exploring multi-modal models that incorporate both optical and radar data to improve performance in challenging conditions.
 - Optimizing the model architecture to balance accuracy with computational efficiency.
+
+See [Future Work](#future-work) for more details.
 
 ## Other Explorations (During the Competition)
 In addition to the Segformer-based approach, I explored using YOLO (You Only Look Once) for object detection and segmentation. The yolo segmentation model performs localization and segmentation, which is the objective of my approach. To support this, I created a [YOLO segmentation dataset](https://www.kaggle.com/api/v1/datasets/download/iyeleon/clandenstine-runways-yolo-segmentation-dataset) specific to the task. YOLO produced impressive results during training and validation, showing a high detection rate and accurate bounding box placement for runway regions. However, it faced challenges generalizing to the test set due to the limited dataset size, leading to overfitting. While the YOLO model demonstrated promise, its performance indicated a need for a larger and more diverse training set to improve robustness across unseen data.
